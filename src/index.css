@@ -1,0 +1,36 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap");
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #0b1018;
+  --panel: rgba(17, 24, 39, 0.78);
+  --panel-strong: #0f172a;
+  --panel-hover: rgba(30, 41, 59, 0.6);
+  --border: #1f2937;
+  --border-strong: #334155;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --muted-2: #64748b;
+  --accent: #3b82f6;
+  --accent-soft: rgba(59, 130, 246, 0.18);
+  --success: #10b981;
+  --success-soft: rgba(16, 185, 129, 0.14);
+  --danger: #ef4444;
+  --danger-soft: rgba(239, 68, 68, 0.14);
+  --grid: #1f2937;
+  --tooltip-bg: rgba(2, 6, 23, 0.95);
+  --tooltip-border: #1f2937;
+}
+
+body {
+  margin: 0;
+  font-family: "Manrope", system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
