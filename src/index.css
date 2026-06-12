@@ -90,6 +90,89 @@ table {
   border-radius: 999px;
 }
 
+.admin-toggle,
+.primary-button,
+.danger-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 8px 12px;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.admin-toggle,
+.primary-button {
+  background: var(--accent);
+  border-color: rgba(96, 165, 250, 0.6);
+  color: #eff6ff;
+}
+
+.admin-toggle:hover,
+.primary-button:hover {
+  background: #2563eb;
+}
+
+.danger-button {
+  background: var(--danger-soft);
+  border-color: rgba(239, 68, 68, 0.38);
+  color: #fecaca;
+}
+
+.danger-button:hover {
+  background: rgba(239, 68, 68, 0.22);
+}
+
+.admin-form {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.1fr) minmax(160px, 1.1fr) minmax(110px, 0.7fr) minmax(110px, 0.7fr) minmax(112px, 0.7fr) auto;
+  gap: 12px;
+  align-items: end;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 18px;
+}
+
+.admin-input {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: #0c1422;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+  padding: 7px 10px;
+}
+
+.admin-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
+}
+
+.admin-source {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.52);
+  padding: 14px;
+}
+
+.history-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) minmax(110px, 140px) minmax(100px, 120px);
+  gap: 10px;
+  align-items: center;
+}
+
 @media (max-width: 760px) {
   .segmented-control,
   .source-toggle-group {
@@ -100,5 +183,16 @@ table {
   .segmented-button,
   .source-toggle {
     flex: 1 1 auto;
+  }
+
+  .admin-form,
+  .history-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1100px) {
+  .admin-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

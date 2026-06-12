@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -14,58 +14,56 @@ import {
   YAxis,
 } from "recharts";
 
-const TODAY = new Date(2026, 5, 12);
+const TODAY = new Date();
 const HOURS_PER_WEEK = 168;
+const API_PATH = "/.netlify/functions/income-data";
 
-const LOGISTICS_SALARY_HISTORY = [
-  { month: "2024-11", amount: 300 },
-  { month: "2024-12", amount: 300 },
-  { month: "2025-01", amount: 400 },
-  { month: "2025-02", amount: 400 },
-  { month: "2025-03", amount: 500 },
-  { month: "2025-04", amount: 500 },
-  { month: "2025-05", amount: 500 },
-  { month: "2025-06", amount: 500 },
-  { month: "2025-07", amount: 500 },
-  { month: "2025-08", amount: 500 },
-  { month: "2025-09", amount: 600 },
-  { month: "2025-10", amount: 700 },
-  { month: "2025-11", amount: 700 },
-  { month: "2025-12", amount: 700 },
-  { month: "2026-01", amount: 900 },
-  { month: "2026-02", amount: 900 },
-  { month: "2026-03", amount: 900 },
-  { month: "2026-04", amount: 900 },
-  { month: "2026-05", amount: 900 },
+const COLOR_OPTIONS = [
+  "#2f7df6",
+  "#00d49f",
+  "#f59e0b",
+  "#ef4444",
+  "#a855f7",
+  "#14b8a6",
+  "#f97316",
+  "#eab308",
 ];
 
-const LOGISTICS_HOURS_HISTORY = [
-  { from: new Date(2024, 10, 3), to: new Date(2025, 11, 31), weeklyHours: 56 },
-  { from: new Date(2026, 0, 1), to: new Date(2026, 2, 31), weeklyHours: 84 },
-  { from: new Date(2026, 3, 1), to: new Date(2026, 4, 31), weeklyHours: 70 },
-  { from: new Date(2026, 5, 1), to: null, weeklyHours: 56 },
-];
-
-const STREAMS = [
+const DEFAULT_SOURCES = [
   {
     id: "logistics",
     name: "Logistics",
     detail: "Dispatcher",
-    currentMonthly: 900,
-    weeklyHours: 56,
-    startDate: new Date(2024, 10, 3),
     color: "#2f7df6",
-    bg: "bg-blue-500/30",
+    records: [
+      { month: "2024-11", income: 300, weeklyHours: 56 },
+      { month: "2024-12", income: 300, weeklyHours: 56 },
+      { month: "2025-01", income: 400, weeklyHours: 56 },
+      { month: "2025-02", income: 400, weeklyHours: 56 },
+      { month: "2025-03", income: 500, weeklyHours: 56 },
+      { month: "2025-04", income: 500, weeklyHours: 56 },
+      { month: "2025-05", income: 500, weeklyHours: 56 },
+      { month: "2025-06", income: 500, weeklyHours: 56 },
+      { month: "2025-07", income: 500, weeklyHours: 56 },
+      { month: "2025-08", income: 500, weeklyHours: 56 },
+      { month: "2025-09", income: 600, weeklyHours: 56 },
+      { month: "2025-10", income: 700, weeklyHours: 56 },
+      { month: "2025-11", income: 700, weeklyHours: 56 },
+      { month: "2025-12", income: 700, weeklyHours: 56 },
+      { month: "2026-01", income: 900, weeklyHours: 84 },
+      { month: "2026-02", income: 900, weeklyHours: 84 },
+      { month: "2026-03", income: 900, weeklyHours: 84 },
+      { month: "2026-04", income: 900, weeklyHours: 70 },
+      { month: "2026-05", income: 900, weeklyHours: 70 },
+      { month: "2026-06", income: 900, weeklyHours: 56 },
+    ],
   },
   {
     id: "freelance",
     name: "Freelance",
     detail: "Software Engineer",
-    currentMonthly: 0,
-    weeklyHours: 0,
-    startDate: new Date(2026, 5, 1),
     color: "#00d49f",
-    bg: "bg-emerald-500/30",
+    records: [{ month: "2026-06", income: 0, weeklyHours: 0 }],
   },
 ];
 
@@ -104,18 +102,17 @@ const monthKey = (date) =>
 const monthLabel = (date) =>
   date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 
-const startOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1);
+const monthInputLabel = (month) => {
+  const [year, monthNumber] = month.split("-").map(Number);
+  return monthLabel(new Date(year, monthNumber - 1, 1));
+};
 
-const endOfMonth = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0);
+const maxMonth = (months) => months.reduce((latest, month) => (month > latest ? month : latest), months[0]);
+
+const startOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1);
 
 const addMonths = (date, count) =>
   new Date(date.getFullYear(), date.getMonth() + count, 1);
-
-const daysBetweenInclusive = (start, end) =>
-  Math.floor((end - start) / 86400000) + 1;
-
-const rangesOverlap = (startA, endA, startB, endB) =>
-  startA <= endB && startB <= endA;
 
 const buildMonths = (start, end) => {
   const months = [];
@@ -130,59 +127,59 @@ const buildMonths = (start, end) => {
   return months;
 };
 
-const getLogisticsIncome = (date) => {
-  const found = LOGISTICS_SALARY_HISTORY.find((item) => item.month === monthKey(date));
-
-  if (found) return found.amount;
-  if (date > new Date(2026, 4, 31)) return 900;
-  return 0;
-};
-
-const getLogisticsWeeklyHours = (date) => {
-  const monthStart = startOfMonth(date);
-  const monthEnd = endOfMonth(date);
-  const range = LOGISTICS_HOURS_HISTORY.find(
-    (item) => rangesOverlap(monthStart, monthEnd, item.from, item.to ?? monthEnd)
-  );
-
-  return range?.weeklyHours ?? 0;
-};
-
-const getLogisticsMonthlyWorkHours = (date) => {
-  const monthStart = startOfMonth(date);
-  const monthEnd = endOfMonth(date);
-
-  return LOGISTICS_HOURS_HISTORY.reduce((total, item) => {
-    const rangeEnd = item.to ?? monthEnd;
-
-    if (!rangesOverlap(monthStart, monthEnd, item.from, rangeEnd)) {
-      return total;
-    }
-
-    const activeStart = item.from > monthStart ? item.from : monthStart;
-    const activeEnd = rangeEnd < monthEnd ? rangeEnd : monthEnd;
-    const activeDays = daysBetweenInclusive(activeStart, activeEnd);
-
-    return total + (item.weeklyHours / 7) * activeDays;
-  }, 0);
-};
-
-const getStreamIncome = (streamId, date) => {
-  if (streamId === "logistics") return getLogisticsIncome(date);
-  return 0;
-};
-
-const getStreamHours = (streamId, date) => {
-  if (streamId === "logistics") return getLogisticsWeeklyHours(date);
-  return 0;
-};
-
-const getStreamMonthlyWorkHours = (streamId, date) => {
-  if (streamId === "logistics") return getLogisticsMonthlyWorkHours(date);
-  return 0;
-};
-
 const monthlyHours = (weeklyHours) => (weeklyHours * 52) / 12;
+
+const slugify = (value) =>
+  value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+const normalizeNumber = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+};
+
+const sortRecords = (records) =>
+  [...records].sort((a, b) => a.month.localeCompare(b.month));
+
+const normalizeSources = (sources) =>
+  sources
+    .filter((source) => source.name?.trim())
+    .map((source, index) => ({
+      id: source.id || `${slugify(source.name) || "source"}-${index + 1}`,
+      name: source.name.trim(),
+      detail: source.detail?.trim() || "Income Source",
+      color: source.color || COLOR_OPTIONS[index % COLOR_OPTIONS.length],
+      records: sortRecords(
+        (source.records?.length ? source.records : [{ month: monthKey(TODAY), income: 0, weeklyHours: 0 }]).map(
+          (record) => ({
+            month: record.month,
+            income: normalizeNumber(record.income),
+            weeklyHours: normalizeNumber(record.weeklyHours),
+          })
+        )
+      ),
+    }));
+
+const getRecord = (source, date) => {
+  const key = typeof date === "string" ? date : monthKey(date);
+  return source.records.find((record) => record.month === key);
+};
+
+const getLatestRecord = (source, throughMonth = monthKey(TODAY)) => {
+  const records = sortRecords(source.records).filter((record) => record.month <= throughMonth);
+  return records[records.length - 1] ?? { income: 0, weeklyHours: 0 };
+};
+
+const getSourceIncome = (source, date) => getRecord(source, date)?.income ?? 0;
+
+const getSourceWeeklyHours = (source, date) => getRecord(source, date)?.weeklyHours ?? 0;
+
+const buildSourceBg = (color) => ({ backgroundColor: `${color}30` });
+
+const getDefaultSources = () => normalizeSources(DEFAULT_SOURCES);
 
 const CustomTooltip = ({ active, payload, label, metric }) => {
   if (!active || !payload?.length) return null;
@@ -215,7 +212,10 @@ const MiniBar = ({ data }) => (
     <BarChart data={data}>
       <XAxis dataKey="name" hide />
       <YAxis hide />
-      <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} content={<CustomTooltip metric={{ format: "hours" }} />} />
+      <Tooltip
+        cursor={{ fill: "rgba(255,255,255,0.04)" }}
+        content={<CustomTooltip metric={{ format: "hours" }} />}
+      />
       <Bar dataKey="value" radius={[6, 6, 0, 0]}>
         {data.map((item) => (
           <Cell key={item.name} fill={item.color} />
@@ -256,58 +256,124 @@ const SourceToggle = ({ stream, active, onClick }) => (
   </button>
 );
 
+const Field = ({ label, children }) => (
+  <label className="grid gap-1 text-xs font-medium uppercase tracking-wide text-[var(--muted)]">
+    <span>{label}</span>
+    {children}
+  </label>
+);
+
 export default function App() {
+  const isAdminRoute = window.location.pathname.replace(/\/+$/, "") === "/admin";
+  const [sources, setSources] = useState(getDefaultSources);
   const [metricKey, setMetricKey] = useState("cumulative");
   const [viewMode, setViewMode] = useState("Area");
-  const [selectedSources, setSelectedSources] = useState(STREAMS.map((stream) => stream.id));
+  const [editMonth, setEditMonth] = useState(monthKey(TODAY));
+  const [password, setPassword] = useState("");
+  const [adminAuthenticated, setAdminAuthenticated] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [selectedSources, setSelectedSources] = useState(() => sources.map((source) => source.id));
+  const [newSource, setNewSource] = useState({
+    name: "",
+    detail: "",
+    income: "",
+    weeklyHours: "",
+    color: COLOR_OPTIONS[2],
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSources = async () => {
+      try {
+        const response = await fetch(API_PATH);
+        if (!response.ok) throw new Error("Request failed");
+        const payload = await response.json();
+        if (isMounted && payload.sources?.length) {
+          setSources(normalizeSources(payload.sources));
+          setLoadError("");
+        }
+      } catch {
+        if (isMounted) {
+          setLoadError("Using bundled data because the Netlify data function is not reachable.");
+        }
+      }
+    };
+
+    loadSources();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    setSelectedSources((currentSources) => {
+      const availableIds = sources.map((source) => source.id);
+      const validIds = currentSources.filter((id) => availableIds.includes(id));
+      return validIds.length ? validIds : availableIds;
+    });
+  }, [sources]);
 
   const data = useMemo(() => {
-    const cumulativeBySource = Object.fromEntries(STREAMS.map((stream) => [stream.id, 0]));
+    const firstMonth = sources.reduce((earliest, source) => {
+      const sourceStart = source.records[0]?.month;
+      if (!sourceStart) return earliest;
+      return sourceStart < earliest ? sourceStart : earliest;
+    }, monthKey(TODAY));
+    const [year, month] = firstMonth.split("-").map(Number);
+    const latestMonth = maxMonth([
+      monthKey(TODAY),
+      ...sources.flatMap((source) => source.records.map((record) => record.month)),
+    ]);
+    const [endYear, endMonth] = latestMonth.split("-").map(Number);
+    const cumulativeBySource = Object.fromEntries(sources.map((source) => [source.id, 0]));
 
-    return buildMonths(new Date(2024, 10, 1), TODAY).map((date) => {
-      const row = { date: monthLabel(date) };
+    return buildMonths(new Date(year, month - 1, 1), new Date(endYear, endMonth - 1, 1)).map((date) => {
+      const row = { date: monthLabel(date), month: monthKey(date) };
 
-      STREAMS.forEach((stream) => {
-        const income = getStreamIncome(stream.id, date);
-        const hours = getStreamHours(stream.id, date);
-        const workHours = getStreamMonthlyWorkHours(stream.id, date);
-        cumulativeBySource[stream.id] += income;
+      sources.forEach((source) => {
+        const income = getSourceIncome(source, date);
+        const hours = getSourceWeeklyHours(source, date);
+        const workHours = monthlyHours(hours);
+        cumulativeBySource[source.id] += income;
 
-        row[`${stream.id}_income`] = income;
-        row[`${stream.id}_cumulative`] = cumulativeBySource[stream.id];
-        row[`${stream.id}_hours`] = hours;
-        row[`${stream.id}_workHours`] = workHours;
-        row[`${stream.id}_hourly`] = workHours ? income / workHours : 0;
+        row[`${source.id}_income`] = income;
+        row[`${source.id}_cumulative`] = cumulativeBySource[source.id];
+        row[`${source.id}_hours`] = hours;
+        row[`${source.id}_workHours`] = workHours;
+        row[`${source.id}_hourly`] = workHours ? income / workHours : 0;
       });
 
-      const income = STREAMS.reduce((sum, stream) => sum + row[`${stream.id}_income`], 0);
-      const hours = STREAMS.reduce((sum, stream) => sum + row[`${stream.id}_hours`], 0);
-      const workHours = STREAMS.reduce((sum, stream) => sum + row[`${stream.id}_workHours`], 0);
+      const income = sources.reduce((sum, source) => sum + row[`${source.id}_income`], 0);
+      const hours = sources.reduce((sum, source) => sum + row[`${source.id}_hours`], 0);
+      const workHours = sources.reduce((sum, source) => sum + row[`${source.id}_workHours`], 0);
       const hourly = workHours ? income / workHours : 0;
 
       return {
         ...row,
         income,
-        cumulative: STREAMS.reduce((sum, stream) => sum + row[`${stream.id}_cumulative`], 0),
+        cumulative: sources.reduce((sum, source) => sum + row[`${source.id}_cumulative`], 0),
         hours,
         workHours,
         hourly,
       };
     });
-  }, []);
+  }, [sources]);
 
   const current = data[data.length - 1];
   const previous = data[Math.max(0, data.length - 2)];
   const metric = METRICS.find((item) => item.key === metricKey);
-  const activeSources = selectedSources.length ? selectedSources : STREAMS.map((stream) => stream.id);
-  const getSeriesKey = (streamId) => `${streamId}_${metricKey}`;
+  const activeSources = selectedSources.length ? selectedSources : sources.map((source) => source.id);
+  const getSeriesKey = (sourceId) => `${sourceId}_${metricKey}`;
   const getSelectedMetricValue = (row) => {
     const selectedIncome = activeSources.reduce(
-      (sum, streamId) => sum + (row[`${streamId}_income`] ?? 0),
+      (sum, sourceId) => sum + (row[`${sourceId}_income`] ?? 0),
       0
     );
     const selectedWorkHours = activeSources.reduce(
-      (sum, streamId) => sum + (row[`${streamId}_workHours`] ?? 0),
+      (sum, sourceId) => sum + (row[`${sourceId}_workHours`] ?? 0),
       0
     );
 
@@ -315,35 +381,54 @@ export default function App() {
       return selectedWorkHours ? selectedIncome / selectedWorkHours : 0;
     }
 
-    return activeSources.reduce((sum, streamId) => sum + (row[getSeriesKey(streamId)] ?? 0), 0);
+    return activeSources.reduce((sum, sourceId) => sum + (row[getSeriesKey(sourceId)] ?? 0), 0);
   };
   const selectedValue = getSelectedMetricValue(current);
   const previousValue = getSelectedMetricValue(previous);
   const delta = previousValue ? ((selectedValue - previousValue) / previousValue) * 100 : 0;
 
-  const totalHours = STREAMS.reduce((sum, item) => sum + getStreamHours(item.id, TODAY), 0);
-  const currentMonthlyIncome = STREAMS.reduce((sum, item) => sum + item.currentMonthly, 0);
+  const rows = sources.map((source) => {
+    const latest = getLatestRecord(source);
+    const earned = data.reduce((sum, item) => sum + (item[`${source.id}_income`] ?? 0), 0);
+    const hours = latest.weeklyHours;
+    const hourly = hours ? latest.income / monthlyHours(hours) : 0;
+
+    return {
+      id: source.id,
+      name: source.name,
+      tag: source.detail,
+      current: latest.income,
+      earned,
+      hours,
+      hourly,
+      replacement: current.income ? (latest.income / current.income) * 100 : 0,
+      color: source.color,
+    };
+  });
+
+  const totalHours = rows.reduce((sum, item) => sum + item.hours, 0);
+  const currentMonthlyIncome = rows.reduce((sum, item) => sum + item.current, 0);
   const currentHourlyRate = totalHours ? currentMonthlyIncome / monthlyHours(totalHours) : 0;
   const earnedToDate = current.cumulative;
   const averageMonthlyIncome = earnedToDate / data.length;
-  const timeData = STREAMS.map((stream) => ({
-    name: stream.name,
-    value: getStreamHours(stream.id, TODAY),
-    color: stream.color,
+  const timeData = rows.map((row) => ({
+    name: row.name,
+    value: row.hours,
+    color: row.color,
   }));
 
   const kpis = [
     {
       label: "Monthly Income",
       value: formatCurrency(currentMonthlyIncome),
-      change: "+28.6%",
-      hint: `vs ${formatCurrency(700)} in Dec 2025`,
+      change: `${delta >= 0 ? "+" : ""}${formatNumber(delta)}%`,
+      hint: "selected trend",
     },
     {
       label: "Earned Total",
       value: formatCurrency(earnedToDate),
       change: "+100%",
-      hint: "since Nov 2024",
+      hint: `since ${monthInputLabel(data[0].month)}`,
     },
     {
       label: "Hourly Rate",
@@ -359,52 +444,185 @@ export default function App() {
     },
   ];
 
-  const rows = [
-    {
-      id: "logistics",
-      name: "Logistics",
-      tag: "Dispatcher",
-      current: 900,
-      earned: data.reduce((sum, item) => sum + item.logistics_income, 0),
-      hours: getLogisticsWeeklyHours(TODAY),
-      hourly: 900 / monthlyHours(getLogisticsWeeklyHours(TODAY)),
-      replacement: 100,
-      color: "#2f7df6",
-      bg: "bg-blue-500/30",
-    },
-    {
-      id: "freelance",
-      name: "Freelance",
-      tag: "Software Engineer",
-      current: 0,
-      earned: 0,
-      hours: 0,
-      hourly: 0,
-      replacement: 0,
-      color: "#00d49f",
-      bg: "bg-emerald-500/30",
-    },
-  ];
-
   const tickDates = data
     .filter((_, index) => index === 0 || index === data.length - 1 || index % 4 === 0)
     .map((item) => item.date);
 
-  const toggleSource = (streamId) => {
+  const toggleSource = (sourceId) => {
     setSelectedSources((currentSources) => {
-      if (currentSources.includes(streamId)) {
-        const next = currentSources.filter((id) => id !== streamId);
+      if (currentSources.includes(sourceId)) {
+        const next = currentSources.filter((id) => id !== sourceId);
         return next.length ? next : currentSources;
       }
 
-      return [...currentSources, streamId];
+      return [...currentSources, sourceId];
     });
   };
+
+  const updateSourceRecord = (sourceId, month, patch) => {
+    setSources((currentSources) =>
+      currentSources.map((source) => {
+        if (source.id !== sourceId) return source;
+
+        const existingRecord = getRecord(source, month) ?? {
+          month,
+          income: getLatestRecord(source, month).income,
+          weeklyHours: getLatestRecord(source, month).weeklyHours,
+        };
+        const nextRecords = source.records.filter((record) => record.month !== month);
+
+        return {
+          ...source,
+          records: sortRecords([
+            ...nextRecords,
+            {
+              ...existingRecord,
+              ...patch,
+            },
+          ]),
+        };
+      })
+    );
+  };
+
+  const updateSourceMeta = (sourceId, patch) => {
+    setSources((currentSources) =>
+      currentSources.map((source) => (source.id === sourceId ? { ...source, ...patch } : source))
+    );
+  };
+
+  const deleteSource = (sourceId) => {
+    setSources((currentSources) => {
+      if (currentSources.length === 1) return currentSources;
+      return currentSources.filter((source) => source.id !== sourceId);
+    });
+  };
+
+  const addSource = (event) => {
+    event.preventDefault();
+    const name = newSource.name.trim();
+    if (!name) return;
+
+    const baseId = slugify(name) || "source";
+    const existingIds = new Set(sources.map((source) => source.id));
+    let id = baseId;
+    let suffix = 2;
+    while (existingIds.has(id)) {
+      id = `${baseId}-${suffix}`;
+      suffix += 1;
+    }
+
+    const source = {
+      id,
+      name,
+      detail: newSource.detail.trim() || "Income Source",
+      color: newSource.color,
+      records: [
+        {
+          month: monthKey(TODAY),
+          income: normalizeNumber(newSource.income),
+          weeklyHours: normalizeNumber(newSource.weeklyHours),
+        },
+      ],
+    };
+
+    setSources((currentSources) => [...currentSources, source]);
+    setSelectedSources((currentSources) => [...currentSources, id]);
+    setNewSource({
+      name: "",
+      detail: "",
+      income: "",
+      weeklyHours: "",
+      color: COLOR_OPTIONS[(sources.length + 1) % COLOR_OPTIONS.length],
+    });
+  };
+
+  const resetData = () => {
+    setSources(DEFAULT_SOURCES);
+    setSelectedSources(DEFAULT_SOURCES.map((source) => source.id));
+    setStatusMessage("Reset locally. Click Save Changes to store it in Netlify Blobs.");
+  };
+
+  const verifyAdmin = async (event) => {
+    event.preventDefault();
+    setStatusMessage("Checking password...");
+
+    try {
+      const response = await fetch(API_PATH, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "verify", password }),
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setStatusMessage(payload.error || "Invalid password.");
+        return;
+      }
+
+      setAdminAuthenticated(true);
+      setStatusMessage("");
+    } catch {
+      setStatusMessage("Could not reach the Netlify admin function.");
+    }
+  };
+
+  const saveSources = async () => {
+    setStatusMessage("Saving changes...");
+
+    try {
+      const response = await fetch(API_PATH, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password, sources }),
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setStatusMessage(payload.error || "Save failed.");
+        return;
+      }
+
+      setSources(normalizeSources(payload.sources));
+      setStatusMessage("Saved to Netlify Blobs.");
+    } catch {
+      setStatusMessage("Could not save to Netlify Blobs.");
+    }
+  };
+
+  if (isAdminRoute && !adminAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
+        <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-10">
+          <form className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-5" onSubmit={verifyAdmin}>
+            <div className="mb-4">
+              <div className="text-lg font-semibold text-[var(--text)]">Admin Login</div>
+              <div className="text-sm text-[var(--muted)]">Enter the admin password to edit income data.</div>
+            </div>
+            <Field label="Password">
+              <input
+                className="admin-input"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                autoComplete="current-password"
+                autoFocus
+              />
+            </Field>
+            {statusMessage && <div className="mt-3 text-sm text-[var(--muted)]">{statusMessage}</div>}
+            <button type="submit" className="primary-button mt-4 w-full">
+              Open Admin
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-6">
-        <header className="flex items-center justify-between">
+        <header className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="rounded-xl bg-[var(--accent-soft)] p-2">
               <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
@@ -420,72 +638,269 @@ export default function App() {
           </div>
         </header>
 
-        <section>
-          <div className="mb-3 text-sm font-semibold text-[var(--text)]">Portfolio Overview</div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {kpis.map((item) => (
-              <div key={item.label} className="rounded-xl border border-[var(--border)] bg-[var(--panel)] px-4 py-3">
-                <div className="text-xs uppercase tracking-wide text-[var(--muted)]">{item.label}</div>
-                <div className="mt-2 text-2xl font-semibold text-[var(--text)]">{item.value}</div>
-                <div className="mt-1 flex items-center gap-2 text-sm">
-                  <span className="text-[var(--success)]">{item.change}</span>
-                  <span className="text-[var(--muted-2)]">{item.hint}</span>
+        {loadError && !isAdminRoute && (
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--panel)] px-4 py-3 text-sm text-[var(--muted)]">
+            {loadError}
+          </div>
+        )}
+
+        {isAdminRoute && (
+          <section className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-5">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-[var(--text)]">Admin Panel</div>
+                <div className="text-xs text-[var(--muted)]">
+                  Changes are saved to Netlify Blobs after you click Save Changes.
                 </div>
               </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <div className="text-sm font-semibold text-[var(--text)]">{metric.label}</div>
-              <div className="mt-2 flex items-center gap-3">
-                <div className="text-3xl font-semibold text-[var(--text)]">
-                  {formatValue(selectedValue, metric.format)}
-                </div>
-                <span className="rounded-full border border-[var(--success)] bg-[var(--success-soft)] px-2 py-1 text-xs font-semibold text-[var(--success)]">
-                  {delta >= 0 ? "+" : ""}
-                  {formatNumber(delta)}%
-                </span>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="danger-button" onClick={resetData}>
+                  Reset Demo Data
+                </button>
+                <button type="button" className="primary-button" onClick={saveSources}>
+                  Save Changes
+                </button>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <div className="source-toggle-group">
-                {STREAMS.map((stream) => (
-                  <SourceToggle
-                    key={stream.id}
-                    stream={stream}
-                    active={activeSources.includes(stream.id)}
-                    onClick={() => toggleSource(stream.id)}
-                  />
+            {statusMessage && <div className="mb-4 text-sm text-[var(--muted)]">{statusMessage}</div>}
+
+            <form className="admin-form" onSubmit={addSource}>
+              <Field label="New Source">
+                <input
+                  className="admin-input"
+                  value={newSource.name}
+                  onChange={(event) => setNewSource((currentValue) => ({ ...currentValue, name: event.target.value }))}
+                  placeholder="Business, job, rental..."
+                />
+              </Field>
+              <Field label="Role">
+                <input
+                  className="admin-input"
+                  value={newSource.detail}
+                  onChange={(event) => setNewSource((currentValue) => ({ ...currentValue, detail: event.target.value }))}
+                  placeholder="Income Source"
+                />
+              </Field>
+              <Field label="Monthly $">
+                <input
+                  className="admin-input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={newSource.income}
+                  onChange={(event) => setNewSource((currentValue) => ({ ...currentValue, income: event.target.value }))}
+                  placeholder="0"
+                />
+              </Field>
+              <Field label="Hours / Week">
+                <input
+                  className="admin-input"
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={newSource.weeklyHours}
+                  onChange={(event) =>
+                    setNewSource((currentValue) => ({ ...currentValue, weeklyHours: event.target.value }))
+                  }
+                  placeholder="0"
+                />
+              </Field>
+              <Field label="Color">
+                <select
+                  className="admin-input"
+                  value={newSource.color}
+                  onChange={(event) => setNewSource((currentValue) => ({ ...currentValue, color: event.target.value }))}
+                >
+                  {COLOR_OPTIONS.map((color) => (
+                    <option key={color} value={color}>
+                      {color}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <button type="submit" className="primary-button">
+                Add Source
+              </button>
+            </form>
+
+            <div className="mt-5 grid gap-4">
+              {sources.map((source) => {
+                const latest = getLatestRecord(source);
+
+                return (
+                  <div key={source.id} className="admin-source">
+                    <div className="grid gap-3 lg:grid-cols-[1.2fr_1.2fr_110px_120px_100px_auto]">
+                      <Field label="Name">
+                        <input
+                          className="admin-input"
+                          value={source.name}
+                          onChange={(event) => updateSourceMeta(source.id, { name: event.target.value })}
+                        />
+                      </Field>
+                      <Field label="Role">
+                        <input
+                          className="admin-input"
+                          value={source.detail}
+                          onChange={(event) => updateSourceMeta(source.id, { detail: event.target.value })}
+                        />
+                      </Field>
+                      <Field label="Month">
+                        <input
+                          className="admin-input"
+                          type="month"
+                          value={editMonth}
+                          onChange={(event) => setEditMonth(event.target.value)}
+                        />
+                      </Field>
+                      <Field label="Monthly $">
+                        <input
+                          className="admin-input"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={getRecord(source, editMonth)?.income ?? latest.income}
+                          onChange={(event) =>
+                            updateSourceRecord(source.id, editMonth, { income: normalizeNumber(event.target.value) })
+                          }
+                        />
+                      </Field>
+                      <Field label="Hours">
+                        <input
+                          className="admin-input"
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          value={getRecord(source, editMonth)?.weeklyHours ?? latest.weeklyHours}
+                          onChange={(event) =>
+                            updateSourceRecord(source.id, editMonth, {
+                              weeklyHours: normalizeNumber(event.target.value),
+                            })
+                          }
+                        />
+                      </Field>
+                      <div className="flex items-end gap-2">
+                        <select
+                          className="admin-input min-w-[92px]"
+                          value={source.color}
+                          onChange={(event) => updateSourceMeta(source.id, { color: event.target.value })}
+                        >
+                          {COLOR_OPTIONS.map((color) => (
+                            <option key={color} value={color}>
+                              {color}
+                            </option>
+                          ))}
+                        </select>
+                        <button type="button" className="danger-button" onClick={() => deleteSource(source.id)}>
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                    <details className="mt-3">
+                      <summary className="cursor-pointer text-sm text-[var(--muted)]">Monthly history</summary>
+                      <div className="mt-3 grid gap-2">
+                        {sortRecords(source.records).map((record) => (
+                          <div key={record.month} className="history-row">
+                            <span className="text-sm text-[var(--muted)]">{monthInputLabel(record.month)}</span>
+                            <input
+                              className="admin-input"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={record.income}
+                              onChange={(event) =>
+                                updateSourceRecord(source.id, record.month, {
+                                  income: normalizeNumber(event.target.value),
+                                })
+                              }
+                            />
+                            <input
+                              className="admin-input"
+                              type="number"
+                              min="0"
+                              step="0.5"
+                              value={record.weeklyHours}
+                              onChange={(event) =>
+                                updateSourceRecord(source.id, record.month, {
+                                  weeklyHours: normalizeNumber(event.target.value),
+                                })
+                              }
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {!isAdminRoute && (
+          <>
+            <section>
+              <div className="mb-3 text-sm font-semibold text-[var(--text)]">Portfolio Overview</div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                {kpis.map((item) => (
+                  <div key={item.label} className="rounded-xl border border-[var(--border)] bg-[var(--panel)] px-4 py-3">
+                    <div className="text-xs uppercase tracking-wide text-[var(--muted)]">{item.label}</div>
+                    <div className="mt-2 text-2xl font-semibold text-[var(--text)]">{item.value}</div>
+                    <div className="mt-1 flex items-center gap-2 text-sm">
+                      <span className="text-[var(--success)]">{item.change}</span>
+                      <span className="text-[var(--muted-2)]">{item.hint}</span>
+                    </div>
+                  </div>
                 ))}
               </div>
-              <SegmentedControl
-                value={metricKey}
-                onChange={setMetricKey}
-                options={METRICS.map((item) => ({ value: item.key, label: item.label }))}
-              />
-              <SegmentedControl
-                value={viewMode}
-                onChange={setViewMode}
-                options={["Area", "Bar"]}
-              />
-            </div>
-          </div>
+            </section>
+
+            <section className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div className="text-sm font-semibold text-[var(--text)]">{metric.label}</div>
+                  <div className="mt-2 flex items-center gap-3">
+                    <div className="text-3xl font-semibold text-[var(--text)]">
+                      {formatValue(selectedValue, metric.format)}
+                    </div>
+                    <span className="rounded-full border border-[var(--success)] bg-[var(--success-soft)] px-2 py-1 text-xs font-semibold text-[var(--success)]">
+                      {delta >= 0 ? "+" : ""}
+                      {formatNumber(delta)}%
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <div className="source-toggle-group">
+                    {sources.map((source) => (
+                      <SourceToggle
+                        key={source.id}
+                        stream={source}
+                        active={activeSources.includes(source.id)}
+                        onClick={() => toggleSource(source.id)}
+                      />
+                    ))}
+                  </div>
+                  <SegmentedControl
+                    value={metricKey}
+                    onChange={setMetricKey}
+                    options={METRICS.map((item) => ({ value: item.key, label: item.label }))}
+                  />
+                  <SegmentedControl value={viewMode} onChange={setViewMode} options={["Area", "Bar"]} />
+                </div>
+              </div>
 
           <div className="mt-4 h-80">
             <ResponsiveContainer width="100%" height="100%">
               {viewMode === "Area" ? (
                 <AreaChart data={data}>
                   <defs>
-                    {activeSources.map((streamId) => {
-                      const stream = STREAMS.find((item) => item.id === streamId);
+                    {activeSources.map((sourceId) => {
+                      const source = sources.find((item) => item.id === sourceId);
+                      if (!source) return null;
 
                       return (
-                        <linearGradient key={streamId} id={`grad-${streamId}`} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={stream.color} stopOpacity={0.4} />
-                          <stop offset="95%" stopColor={stream.color} stopOpacity={0.05} />
+                        <linearGradient key={sourceId} id={`grad-${sourceId}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={source.color} stopOpacity={0.4} />
+                          <stop offset="95%" stopColor={source.color} stopOpacity={0.05} />
                         </linearGradient>
                       );
                     })}
@@ -494,18 +909,19 @@ export default function App() {
                   <XAxis dataKey="date" ticks={tickDates} tick={{ fill: "var(--muted)", fontSize: 12 }} axisLine={{ stroke: "var(--grid)" }} tickLine={false} />
                   <YAxis tick={{ fill: "var(--muted)", fontSize: 12 }} axisLine={{ stroke: "var(--grid)" }} tickLine={false} tickFormatter={(value) => metric.format === "currency" ? formatCompactCurrency(value) : formatValue(value, metric.format)} />
                   <Tooltip content={<CustomTooltip metric={metric} />} cursor={{ stroke: "var(--border-strong)", strokeDasharray: "3 3" }} />
-                  {activeSources.map((streamId) => {
-                    const stream = STREAMS.find((item) => item.id === streamId);
+                  {activeSources.map((sourceId) => {
+                    const source = sources.find((item) => item.id === sourceId);
+                    if (!source) return null;
 
                     return (
                       <Area
-                        key={streamId}
+                        key={sourceId}
                         type="monotone"
-                        dataKey={getSeriesKey(streamId)}
-                        name={stream.name}
-                        stroke={stream.color}
+                        dataKey={getSeriesKey(sourceId)}
+                        name={source.name}
+                        stroke={source.color}
                         strokeWidth={2.4}
-                        fill={`url(#grad-${streamId})`}
+                        fill={`url(#grad-${sourceId})`}
                         fillOpacity={0.24}
                         dot={false}
                       />
@@ -518,30 +934,32 @@ export default function App() {
                   <XAxis dataKey="date" ticks={tickDates} tick={{ fill: "var(--muted)", fontSize: 12 }} axisLine={{ stroke: "var(--grid)" }} tickLine={false} />
                   <YAxis tick={{ fill: "var(--muted)", fontSize: 12 }} axisLine={{ stroke: "var(--grid)" }} tickLine={false} tickFormatter={(value) => metric.format === "currency" ? formatCompactCurrency(value) : formatValue(value, metric.format)} />
                   <Tooltip content={<CustomTooltip metric={metric} />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
-                  {activeSources.map((streamId) => {
-                    const stream = STREAMS.find((item) => item.id === streamId);
+                  {activeSources.map((sourceId) => {
+                    const source = sources.find((item) => item.id === sourceId);
+                    if (!source) return null;
 
                     return (
                       <Bar
-                        key={streamId}
-                        dataKey={getSeriesKey(streamId)}
-                        name={stream.name}
-                        fill={stream.color}
+                        key={sourceId}
+                        dataKey={getSeriesKey(sourceId)}
+                        name={source.name}
+                        fill={source.color}
                         radius={[4, 4, 0, 0]}
                         maxBarSize={34}
                       />
                     );
                   })}
-                  {activeSources.map((streamId) => {
-                    const stream = STREAMS.find((item) => item.id === streamId);
+                  {activeSources.map((sourceId) => {
+                    const source = sources.find((item) => item.id === sourceId);
+                    if (!source) return null;
 
                     return (
                       <Line
-                        key={`${streamId}-line`}
+                        key={`${sourceId}-line`}
                         type="monotone"
-                        dataKey={getSeriesKey(streamId)}
-                        name={stream.name}
-                        stroke={stream.color}
+                        dataKey={getSeriesKey(sourceId)}
+                        name={source.name}
+                        stroke={source.color}
                         strokeWidth={2}
                         dot={false}
                       />
@@ -573,7 +991,10 @@ export default function App() {
                     <tr key={row.id} className="border-t border-[var(--border)] transition-colors hover:bg-[var(--panel-hover)]">
                       <td className="px-4 py-3 text-left">
                         <div className="flex items-center gap-3">
-                          <div className={`flex h-7 w-7 items-center justify-center rounded-full ${row.bg} text-xs font-semibold text-[var(--text)]`}>
+                          <div
+                            className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold text-[var(--text)]"
+                            style={buildSourceBg(row.color)}
+                          >
                             {row.name.slice(0, 2).toUpperCase()}
                           </div>
                           <div>
@@ -614,6 +1035,8 @@ export default function App() {
             </div>
           </div>
         </section>
+          </>
+        )}
       </div>
     </div>
   );
