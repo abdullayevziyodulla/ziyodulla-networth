@@ -86,16 +86,29 @@ const readSources = async (store) => {
   return normalizeSources(stored || DEFAULT_SOURCES);
 };
 
+const getIncomeStore = () => getStore({ name: STORE_NAME, consistency: "strong" });
+
+const isMissingBlobsEnvironment = (error) => error?.name === "MissingBlobsEnvironmentError";
+
 export const handler = async (event) => {
   if (event.httpMethod === "OPTIONS") {
     return json(200, { ok: true });
   }
 
   try {
-    const store = getStore({ name: STORE_NAME, consistency: "strong" });
-
     if (event.httpMethod === "GET") {
-      return json(200, { sources: await readSources(store) });
+      try {
+        return json(200, { sources: await readSources(getIncomeStore()) });
+      } catch (error) {
+        if (isMissingBlobsEnvironment(error)) {
+          return json(200, {
+            sources: DEFAULT_SOURCES,
+            warning: "Netlify Blobs is not configured, so bundled income data is being shown.",
+          });
+        }
+
+        throw error;
+      }
     }
 
     if (event.httpMethod !== "POST") {
@@ -121,7 +134,18 @@ export const handler = async (event) => {
       return json(400, { error: "At least one income source is required." });
     }
 
-    await store.setJSON(DATA_KEY, sources);
+    try {
+      await getIncomeStore().setJSON(DATA_KEY, sources);
+    } catch (error) {
+      if (isMissingBlobsEnvironment(error)) {
+        return json(500, {
+          error:
+            "Netlify Blobs is not configured. In Netlify, redeploy the site and make sure the function has Blobs access, or provide siteID and token configuration for @netlify/blobs.",
+        });
+      }
+
+      throw error;
+    }
 
     return json(200, { sources });
   } catch (error) {
